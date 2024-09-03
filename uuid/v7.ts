@@ -40,13 +40,6 @@ export interface GenerateOptions {
    * @default {Date.now()}
    */
   timestamp?: number;
-  /**
-   * 10 bytes of random value to use in the UUID.
-   * Generally you should not need to set these, but it can be useful for testing.
-   *
-   * @internal
-   */
-  random?: Uint8Array;
 }
 
 /**
@@ -81,11 +74,7 @@ export function generate(options: GenerateOptions = {}): string {
   }
   const timestamp = BigInt(options.timestamp ?? Date.now());
   view.setBigUint64(0, timestamp << 16n);
-  if (options.random) {
-    bytes.set(options.random, 6);
-  } else {
-    crypto.getRandomValues(bytes.subarray(6));
-  }
+  crypto.getRandomValues(bytes.subarray(6));
   // Version (4 bits) Occupies bits 48 through 51 of octet 6.
   view.setUint8(6, (view.getUint8(6) & 0b00001111) | 0b01110000);
   // Variant (2 bits) Occupies bits 64 through 65 of octet 8.
@@ -95,6 +84,7 @@ export function generate(options: GenerateOptions = {}): string {
 
 export function generateArrayAccess(options: GenerateOptions = {}): string {
   const bytes = new Uint8Array(16);
+  const view = new DataView(bytes.buffer);
   // Unix timestamp in milliseconds (truncated to 48 bits)
   if (
     options.timestamp !== undefined && (
@@ -106,16 +96,49 @@ export function generateArrayAccess(options: GenerateOptions = {}): string {
     );
   }
   const timestamp = options.timestamp ?? Date.now();
+
   bytes[0] = (timestamp / 0x10000000000) & 0xff;
   bytes[1] = (timestamp / 0x100000000) & 0xff;
   bytes[2] = (timestamp / 0x1000000) & 0xff;
   bytes[3] = (timestamp / 0x10000) & 0xff;
   bytes[4] = (timestamp / 0x100) & 0xff;
   bytes[5] = timestamp & 0xff;
+
   crypto.getRandomValues(bytes.subarray(6));
   // Version (4 bits) Occupies bits 48 through 51 of octet 6.
-  bytes[6] = (bytes[6]! & 0b00001111) | 0b01110000;
+  view.setUint8(6, (view.getUint8(6) & 0b00001111) | 0b01110000);
   // Variant (2 bits) Occupies bits 64 through 65 of octet 8.
-  bytes[8] = (bytes[8]! & 0b00111111) | 0b10000000;
+  view.setUint8(8, (view.getUint8(8) & 0b00111111) | 0b10000000);
   return bytesToUuid(bytes);
+}
+
+/**
+ * Extracts the timestamp from a UUIDv7.
+ *
+ * @experimental **UNSTABLE**: New API, yet to be vetted.
+ *
+ * @param uuid UUIDv7 string to extract the timestamp from.
+ * @returns Returns the timestamp in milliseconds.
+ *
+ * @throws {TypeError} If the UUID is not a valid UUIDv7.
+ *
+ * @example Usage
+ * ```ts
+ * import { extractTimestamp } from "@std/uuid/v7";
+ * import { assertEquals } from "@std/assert";
+ *
+ * const uuid = "017f22e2-79b0-7cc3-98c4-dc0c0c07398f";
+ * const timestamp = extractTimestamp(uuid);
+ * assertEquals(timestamp, 1645557742000);
+ * ```
+ */
+export function extractTimestamp(uuid: string): number {
+  if (!validate(uuid)) {
+    throw new TypeError(
+      "Could not extract timestamp because the UUID was not a valid UUIDv7",
+    );
+  }
+  const timestampHex = uuid.slice(0, 8) + uuid.slice(9, 13);
+  const timestampInMilliseconds = parseInt(timestampHex, 16);
+  return timestampInMilliseconds;
 }
