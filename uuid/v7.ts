@@ -92,3 +92,30 @@ export function generate(options: GenerateOptions = {}): string {
   view.setUint8(8, (view.getUint8(8) & 0b00111111) | 0b10000000);
   return bytesToUuid(bytes);
 }
+
+export function generateArrayAccess(options: GenerateOptions = {}): string {
+  const bytes = new Uint8Array(16);
+  // Unix timestamp in milliseconds (truncated to 48 bits)
+  if (
+    options.timestamp !== undefined && (
+      !Number.isInteger(options.timestamp) || options.timestamp < 0
+    )
+  ) {
+    throw new Error(
+      `Cannot generate UUID as timestamp must be a non-negative integer: timestamp ${options.timestamp}`,
+    );
+  }
+  const timestamp = options.timestamp ?? Date.now();
+  bytes[0] = (timestamp / 0x10000000000) & 0xff;
+  bytes[1] = (timestamp / 0x100000000) & 0xff;
+  bytes[2] = (timestamp / 0x1000000) & 0xff;
+  bytes[3] = (timestamp / 0x10000) & 0xff;
+  bytes[4] = (timestamp / 0x100) & 0xff;
+  bytes[5] = timestamp & 0xff;
+  crypto.getRandomValues(bytes.subarray(6));
+  // Version (4 bits) Occupies bits 48 through 51 of octet 6.
+  bytes[6] = (bytes[6]! & 0b00001111) | 0b01110000;
+  // Variant (2 bits) Occupies bits 64 through 65 of octet 8.
+  bytes[8] = (bytes[8]! & 0b00111111) | 0b10000000;
+  return bytesToUuid(bytes);
+}

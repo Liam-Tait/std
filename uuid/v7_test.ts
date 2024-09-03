@@ -1,6 +1,6 @@
 // Copyright 2018-2024 the Deno authors. All rights reserved. MIT license.
 import { assert, assertEquals, assertThrows } from "@std/assert";
-import { generate, validate } from "./v7.ts";
+import { generateArrayAccess as generate, validate } from "./v7.ts";
 
 Deno.test("generate() generates a non-empty string", () => {
   const u1 = generate();
